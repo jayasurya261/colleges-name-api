@@ -2,6 +2,8 @@ var express = require('express');
 var csv = require('csv');
 var app = express();
 const fs = require("fs");
+const cors = require('cors');
+app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
