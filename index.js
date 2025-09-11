@@ -1,213 +1,135 @@
-var express = require('express');
-var csv = require('csv');
-var app = express();
-const fs = require("fs");
+const express = require('express');
+const fs = require('fs').promises;
+const csv = require('csv');
 const cors = require('cors');
+
+const app = express();
 app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
+let colleges = [];
 
-var colleges; 
-
-
-fs.readFile('db/database.csv', (err, data) => {
-  
-
-console.log("[cAPi] : File read !");
-
-	csv.parse(data, function(err, data){
-
-	colleges = data;
-
-	console.log("[cAPi] : CSV Loaded !");
-    
-  });
-
-});
-   
-app.get('/',function(req,res){
-
-	res.send("Colleges API : SriGuru Institute of Technology, Coimbatore");
-
-});
-
-app.post('/colleges/total', function (req, res) {
-
-	var str = {
-		total : colleges.length
-	};
-
-	res.send(JSON.stringify(str));
-
-})
-
-
-app.post('/colleges/search', function (req, res) {
-
-	var keyword = req.headers.keyword.toLowerCase();
-	var result = [];
-
-	for(var i = 0 ; i < colleges.length ; i++){
-
-		if(colleges[i][2].toLowerCase().indexOf(keyword)>=0){	
-
-			colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
-			colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
-
-			colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
-			colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");
-
-			result.push(colleges[i]);
-		}
-	}
-
-	res.send(JSON.stringify(result));
-
-})
-
-app.post('/colleges/state', function (req, res) {
-
-	var state = req.headers.state.toLowerCase();
-	var offset = req.headers.offset;
-	console.log(offset);
-	var result = [];	
-	
-
-	for(var i = 0 ; i < colleges.length; i++){
-
-		if(colleges[i][4].toLowerCase().indexOf(state)>=0){		
-
-			colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
-			colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
-
-			colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
-			colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");		
-
-			result.push(colleges[i]);				
-		}
-	}
-
-	var limitResult = [];
-	var count = 0;
-
-	var limit = Number(offset) + 10;
-
-	for(i = offset ; i < limit ; i++){
-
-		limitResult.push(result[i]);
-
-	}
-
-	res.send(JSON.stringify(limitResult));
-
-})
-
-
-app.post('/colleges/district', function (req, res) {
-
-	var district = req.headers.district.toLowerCase();
-	var offset = req.headers.offset;
-	console.log(offset);
-	var result = [];	
-	
-
-	for(var i = 0 ; i < colleges.length; i++){
-
-		if(colleges[i][5].toLowerCase().indexOf(district)>=0){	
-
-			colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
-			colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
-
-			colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
-			colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");
-						
-			result.push(colleges[i]);				
-		}
-	}
-
-	var limitResult = [];
-	var count = 0;
-
-	if(offset == -1){
-
-		res.send(JSON.stringify(result));
-
-	}else{
-		var limit = Number(offset) + 10;
-
-		for(i = offset ; i < limit ; i++){
-
-			limitResult.push(result[i]);
-			
-		}
-
-		res.send(JSON.stringify(limitResult));
-	}
-
-	
-
-	
-
-})
-
-Array.prototype.contains = function(obj) {
-    var i = this.length;
-    while (i--) {
-        if (this[i] === obj) {
-            return true;
-        }
-    }
-    return false;
+// Helper function to clean college names
+function cleanName(name) {
+    if (!name) return "";
+    name = name.replace(/\:[^>]*\)/ig, "");
+    name = name.replace(/(\(Id)/ig, "");
+    return name;
 }
 
-app.post('/allstates', function (req, res) {
+// Load CSV file asynchronously
+async function loadCSV() {
+    try {
+        const data = await fs.readFile('db/database.csv');
+        csv.parse(data, (err, parsedData) => {
+            if (err) {
+                console.error("Error parsing CSV:", err);
+                process.exit(1);
+            }
+            colleges = parsedData;
+            console.log("[cAPI] : CSV Loaded!");
+        });
+    } catch (err) {
+        console.error("Error reading CSV file:", err);
+        process.exit(1);
+    }
+}
 
-	var result = [];		
+// Middleware to check if colleges data is loaded
+function ensureDataLoaded(req, res, next) {
+    if (!colleges || colleges.length === 0) {
+        return res.status(503).json({ error: "Data not loaded yet. Try again later." });
+    }
+    next();
+}
 
-	for(var i = 1 ; i < colleges.length; i++){
+// Routes
+app.get('/', (req, res) => {
+    res.send("Colleges API: SriGuru Institute of Technology, Coimbatore");
+});
 
-		if(result.indexOf(colleges[i][4]) < 0 ){
+app.post('/colleges/total', ensureDataLoaded, (req, res) => {
+    res.json({ total: colleges.length });
+});
 
-				result.push(colleges[i][4]);
+app.post('/colleges/search', ensureDataLoaded, (req, res) => {
+    const keyword = (req.headers.keyword || "").toLowerCase();
+    const result = [];
 
-		}else{
-			
-		}
-		
-	}	
+    colleges.forEach(college => {
+        if ((college[2] || "").toLowerCase().includes(keyword)) {
+            college[2] = cleanName(college[2]);
+            college[1] = cleanName(college[1]);
+            result.push(college);
+        }
+    });
 
-	res.send(JSON.stringify(result));
+    res.json(result);
+});
 
-})
+app.post('/colleges/state', ensureDataLoaded, (req, res) => {
+    const state = (req.headers.state || "").toLowerCase();
+    const offset = Number(req.headers.offset) || 0;
+    const result = [];
 
+    colleges.forEach(college => {
+        if ((college[4] || "").toLowerCase().includes(state)) {
+            college[2] = cleanName(college[2]);
+            college[1] = cleanName(college[1]);
+            result.push(college);
+        }
+    });
 
-app.post('/districts', function (req, res) {
+    res.json(result.slice(offset, offset + 10));
+});
 
-	var state = req.headers.state.toLowerCase();
-	var result = [];
+app.post('/colleges/district', ensureDataLoaded, (req, res) => {
+    const district = (req.headers.district || "").toLowerCase();
+    const offset = Number(req.headers.offset) || -1;
+    const result = [];
 
-	for(var i = 0 ; i < colleges.length ; i++){
+    colleges.forEach(college => {
+        if ((college[5] || "").toLowerCase().includes(district)) {
+            college[2] = cleanName(college[2]);
+            college[1] = cleanName(college[1]);
+            result.push(college);
+        }
+    });
 
-		if(colleges[i][4].toLowerCase().indexOf(state)>=0){		
+    if (offset === -1) {
+        return res.json(result);
+    }
 
-			if(result.indexOf(colleges[i][5])< 0){
+    res.json(result.slice(offset, offset + 10));
+});
 
-				result.push(colleges[i][5]);
+app.post('/allstates', ensureDataLoaded, (req, res) => {
+    const states = [];
+    colleges.forEach(college => {
+        if (college[4] && !states.includes(college[4])) {
+            states.push(college[4]);
+        }
+    });
+    res.json(states);
+});
 
-			}		
+app.post('/districts', ensureDataLoaded, (req, res) => {
+    const state = (req.headers.state || "").toLowerCase();
+    const districts = [];
+    colleges.forEach(college => {
+        if ((college[4] || "").toLowerCase().includes(state)) {
+            if (college[5] && !districts.includes(college[5])) {
+                districts.push(college[5]);
+            }
+        }
+    });
+    res.json(districts);
+});
 
-			
-
-		}
-	}
-
-	res.send(JSON.stringify(result));
-
-})
-
-app.listen(PORT, function () {  
-
-  console.log("Example app listening at " + PORT);
-
-})
+// Start the server after loading CSV
+loadCSV().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
+    });
+});
