@@ -4,150 +4,146 @@ var app = express();
 const fs = require("fs");
 const cors = require('cors');
 app.use(cors());
+app.use(express.json()); // Added for parsing JSON bodies
 
 const PORT = process.env.PORT || 3000;
 
-
 var colleges; 
-
 
 fs.readFile('db/database.csv', (err, data) => {
   
+  console.log("[cAPi] : File read !");
 
-console.log("[cAPi] : File read !");
+  csv.parse(data, function(err, data){
 
-	csv.parse(data, function(err, data){
+    colleges = data;
 
-	colleges = data;
-
-	console.log("[cAPi] : CSV Loaded !");
+    console.log("[cAPi] : CSV Loaded !");
     
   });
-
 });
    
 app.get('/',function(req,res){
 
-	res.send("Colleges API : SriGuru Institute of Technology, Coimbatore");
+  res.send("Colleges API : SriGuru Institute of Technology, Coimbatore");
 
 });
 
 app.post('/colleges/total', function (req, res) {
 
-	var str = {
-		total : colleges.length
-	};
+  var str = {
+    total : colleges.length
+  };
 
-	res.send(JSON.stringify(str));
+  res.send(JSON.stringify(str));
 
 })
 
-
 app.post('/colleges/search', function (req, res) {
 
-	var keyword = req.headers.keyword.toLowerCase();
-	var result = [];
+  var keyword = req.headers.keyword.toLowerCase();
+  var result = [];
 
-	for(var i = 0 ; i < colleges.length ; i++){
+  for(var i = 0 ; i < colleges.length ; i++){
 
-		if(colleges[i][2].toLowerCase().indexOf(keyword)>=0){	
+    if(colleges[i][2].toLowerCase().indexOf(keyword)>=0){	
 
-			colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
-			colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
+      colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
+      colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
 
-			colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
-			colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");
+      colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
+      colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");
 
-			result.push(colleges[i]);
-		}
-	}
+      result.push(colleges[i]);
+    }
+  }
 
-	res.send(JSON.stringify(result));
+  res.send(JSON.stringify(result));
 
 })
 
 app.post('/colleges/state', function (req, res) {
 
-	var state = req.headers.state.toLowerCase();
-	var offset = req.headers.offset;
-	console.log(offset);
-	var result = [];	
-	
+  var state = req.headers.state.toLowerCase();
+  var offset = req.headers.offset;
+  console.log(offset);
+  var result = [];	
+  
 
-	for(var i = 0 ; i < colleges.length; i++){
+  for(var i = 0 ; i < colleges.length; i++){
 
-		if(colleges[i][4].toLowerCase().indexOf(state)>=0){		
+    if(colleges[i][4].toLowerCase().indexOf(state)>=0){		
 
-			colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
-			colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
+      colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
+      colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
 
-			colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
-			colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");		
+      colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
+      colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");		
 
-			result.push(colleges[i]);				
-		}
-	}
+      result.push(colleges[i]);				
+    }
+  }
 
-	var limitResult = [];
-	var count = 0;
+  var limitResult = [];
+  var count = 0;
 
-	var limit = Number(offset) + 10;
+  var limit = Number(offset) + 10;
 
-	for(i = offset ; i < limit ; i++){
+  for(i = offset ; i < limit ; i++){
 
-		limitResult.push(result[i]);
+    limitResult.push(result[i]);
 
-	}
+  }
 
-	res.send(JSON.stringify(limitResult));
+  res.send(JSON.stringify(limitResult));
 
 })
 
 
 app.post('/colleges/district', function (req, res) {
 
-	var district = req.headers.district.toLowerCase();
-	var offset = req.headers.offset;
-	console.log(offset);
-	var result = [];	
-	
+  var district = req.headers.district.toLowerCase();
+  var offset = req.headers.offset;
+  console.log(offset);
+  var result = [];	
+  
 
-	for(var i = 0 ; i < colleges.length; i++){
+  for(var i = 0 ; i < colleges.length; i++){
 
-		if(colleges[i][5].toLowerCase().indexOf(district)>=0){	
+    if(colleges[i][5].toLowerCase().indexOf(district)>=0){	
 
-			colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
-			colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
+      colleges[i][2] = colleges[i][2].replace(/\:[^>]*\)/ig,"");
+      colleges[i][2] = colleges[i][2].replace(/(\(Id)/ig,"");
 
-			colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
-			colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");
-						
-			result.push(colleges[i]);				
-		}
-	}
+      colleges[i][1] = colleges[i][1].replace(/\:[^>]*\)/ig,"");
+      colleges[i][1] = colleges[i][1].replace(/(\(Id)/ig,"");
+                  
+      result.push(colleges[i]);				
+    }
+  }
 
-	var limitResult = [];
-	var count = 0;
+  var limitResult = [];
+  var count = 0;
 
-	if(offset == -1){
+  if(offset == -1){
 
-		res.send(JSON.stringify(result));
+    res.send(JSON.stringify(result));
 
-	}else{
-		var limit = Number(offset) + 10;
+  }else{
+    var limit = Number(offset) + 10;
 
-		for(i = offset ; i < limit ; i++){
+    for(i = offset ; i < limit ; i++){
 
-			limitResult.push(result[i]);
-			
-		}
+      limitResult.push(result[i]);
+      
+    }
 
-		res.send(JSON.stringify(limitResult));
-	}
+    res.send(JSON.stringify(limitResult));
+  }
 
-	
+  
 
-	
+  
 
 })
 
@@ -163,48 +159,78 @@ Array.prototype.contains = function(obj) {
 
 app.post('/allstates', function (req, res) {
 
-	var result = [];		
+  var result = [];		
 
-	for(var i = 1 ; i < colleges.length; i++){
+  for(var i = 1 ; i < colleges.length; i++){
 
-		if(result.indexOf(colleges[i][4]) < 0 ){
+    if(result.indexOf(colleges[i][4]) < 0 ){
 
-				result.push(colleges[i][4]);
+        result.push(colleges[i][4]);
 
-		}else{
-			
-		}
-		
-	}	
+  }else{
+      
+  }
+    
+  }	
 
-	res.send(JSON.stringify(result));
+  res.send(JSON.stringify(result));
 
 })
 
 
 app.post('/districts', function (req, res) {
 
-	var state = req.headers.state.toLowerCase();
-	var result = [];
+  var state = req.headers.state.toLowerCase();
+  var result = [];
 
-	for(var i = 0 ; i < colleges.length ; i++){
+  for(var i = 0 ; i < colleges.length ; i++){
 
-		if(colleges[i][4].toLowerCase().indexOf(state)>=0){		
+    if(colleges[i][4].toLowerCase().indexOf(state)>=0){		
 
-			if(result.indexOf(colleges[i][5])< 0){
+      if(result.indexOf(colleges[i][5])< 0){
 
-				result.push(colleges[i][5]);
+        result.push(colleges[i][5]);
 
-			}		
+      }		
 
-			
+      
 
-		}
-	}
+    }
+  }
 
-	res.send(JSON.stringify(result));
+  res.send(JSON.stringify(result));
 
 })
+
+// hCaptcha Verification Endpoint
+app.post('/verify-hcaptcha', async function (req, res) {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ success: false, error: "missing-token" });
+  }
+
+  const secret = process.env.HCAPTCHA_SECRET;
+  if (!secret) {
+    return res.status(500).json({ success: false, error: "missing-secret" });
+  }
+
+  try {
+    const params = new URLSearchParams();
+    params.append("secret", secret);
+    params.append("response", token);
+
+    const verifyRes = await fetch("https://hcaptcha.com/siteverify", {
+      method: "POST",
+      body: params,
+    });
+
+    const body = await verifyRes.json();
+
+    res.json(body);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.listen(PORT, function () {  
 
