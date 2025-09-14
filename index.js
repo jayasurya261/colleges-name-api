@@ -10,12 +10,7 @@ const PORT = process.env.PORT || 3000;
 
 var colleges; 
 
-<<<<<<< HEAD
 fs.readFile('db/database.csv', (err, data) => {
-=======
-
-fs.readFile('database.csv', (err, data) => {
->>>>>>> d4f0a4f75f30e894c127dbbb7520c72b19fe8b4e
   
   console.log("[cAPi] : File read !");
 
