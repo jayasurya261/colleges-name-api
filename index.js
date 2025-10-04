@@ -14,7 +14,7 @@ let colleges = null;
 // Load CSV file from Cloudinary at startup
 async function loadCSV() {
   try {
-    const url = "https://res.cloudinary.com/dqudvximt/raw/upload/v1757837730/database_v9cewf.csv";
+    const url = "https://res.cloudinary.com/dqudvximt/raw/upload/v1759602659/database_maro0f.csv";
     const response = await fetch(url);
 
     if (!response.ok) {
