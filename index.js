@@ -16,11 +16,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const upload = multer({ dest: "uploads/" });
 
+// CORS Middleware
 app.use(cors({
   origin: "*", // Allow all origins
-  methods: ["GET", "POST", "DELETE"], // Specify allowed methods
-  allowedHeaders: ["Content-Type", "keyword", "state", "district", "offset"], // Specify allowed headers
+  methods: ["GET", "POST", "DELETE", "OPTIONS"], // Include OPTIONS explicitly
+  allowedHeaders: ["Content-Type", "Authorization", "keyword", "state", "district", "offset"], // Add Authorization
 }));
+
+// Additional middleware to ensure CORS headers are set for all responses
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, keyword, state, district, offset");
+  next();
+});
+
 app.use(express.json());
 
 // Cloudinary Configuration
@@ -97,7 +107,6 @@ app.post("/colleges/search", (req, res) => {
   if (!colleges) return res.status(500).json({ error: "Data not loaded" });
 
   const keyword = req.headers.keyword?.toLowerCase() || "";
-  // Removed strict check for keyword to allow empty searches
   const result = colleges
     .filter((row) => !keyword || row[2]?.toLowerCase().includes(keyword))
     .map((row) => {
@@ -219,7 +228,7 @@ app.post("/upload-resume", upload.single("resume"), async (req, res) => {
     }
 
     // Upload to Cloudinary
-    const fileName = `resumes/${userId}-resume.pdf`; // Added .pdf extension
+    const fileName = `resumes/${userId}-resume.pdf`;
     const result = await cloudinary.uploader.upload(outputPath, {
       resource_type: "raw",
       public_id: fileName,
@@ -259,15 +268,25 @@ app.post("/upload-resume", upload.single("resume"), async (req, res) => {
   }
 });
 
+// Explicit OPTIONS handler for /delete-resume
+app.options("/delete-resume", (req, res) => {
+  res.set({
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  });
+  res.sendStatus(204);
+});
+
 app.delete("/delete-resume", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ success: false, error: "Missing userId" });
 
   try {
-    const publicId = `resumes/${userId}-resume.pdf`; // Added .pdf extension
+    const publicId = `resumes/${userId}-resume.pdf`;
     console.log("[cAPi] : Attempting to delete resume with public_id:", publicId);
 
-    // Attempt to delete from Cloudinary
     const result = await cloudinary.uploader.destroy(publicId, {
       resource_type: "raw",
       invalidate: true,
@@ -276,7 +295,6 @@ app.delete("/delete-resume", async (req, res) => {
     console.log("[cAPi] : Cloudinary delete result:", result);
 
     if (result.result === "ok" || result.result === "not found") {
-      // Update Supabase
       const { error: updateError } = await supabase
         .from("users")
         .update({ resume_url: null })
