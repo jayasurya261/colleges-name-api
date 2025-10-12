@@ -16,7 +16,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const upload = multer({ dest: "uploads/" });
 
-app.use(cors());
+app.use(cors({
+  origin: "*", // Allow all origins
+  methods: ["GET", "POST", "DELETE"], // Specify allowed methods
+  allowedHeaders: ["Content-Type", "keyword", "state", "district", "offset"], // Specify allowed headers
+}));
 app.use(express.json());
 
 // Cloudinary Configuration
