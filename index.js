@@ -10,20 +10,42 @@ import { parse } from "csv-parse";
 import dotenv from "dotenv";
 import { v2 as cloudinary } from "cloudinary";
 
-dotenv.config();
+dotenv.config({ debug: true }); // Enable dotenv debug for better logging
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const upload = multer({ dest: "uploads/" });
+
+// Configure multer to use /tmp directory for Vercel
+const uploadDir = "/tmp/uploads";
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+        console.log("[cAPi] : Created directory /tmp/uploads");
+      }
+      cb(null, uploadDir);
+    } catch (error) {
+      console.error("[cAPi] : Failed to create /tmp/uploads directory", error.message);
+      cb(error, null);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const upload = multer({ storage });
 
 // CORS Middleware
 app.use(cors({
   origin: "*", // Allow all origins
-  methods: ["GET", "POST", "DELETE", "OPTIONS"], // Include OPTIONS explicitly
-  allowedHeaders: ["Content-Type", "Authorization", "keyword", "state", "district", "offset"], // Add Authorization
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "keyword", "state", "district", "offset"],
 }));
 
-// Additional middleware to ensure CORS headers are set for all responses
+// Additional middleware to ensure CORS headers
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
@@ -35,9 +57,9 @@ app.use(express.json());
 
 // Cloudinary Configuration
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "dqudvximt",
-  api_key: process.env.CLOUDINARY_API_KEY || "572978986545629",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "Ifgck_TiOLpEWvjXkB9pASw_3n8",
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 // Supabase Configuration
@@ -206,7 +228,7 @@ app.post("/upload-resume", upload.single("resume"), async (req, res) => {
   const userId = req.body.userId;
   if (!userId) return res.status(400).json({ success: false, error: "Missing userId" });
 
-  const outputPath = path.join("uploads", `compressed_${Date.now()}.pdf`);
+  const outputPath = path.join(uploadDir, `compressed_${Date.now()}.pdf`);
 
   try {
     // Validate file type
@@ -248,8 +270,12 @@ app.post("/upload-resume", upload.single("resume"), async (req, res) => {
     }
 
     // Cleanup local files
-    fs.unlinkSync(inputPath);
-    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    try {
+      if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    } catch (cleanupErr) {
+      console.error("[cAPi] : Cleanup failed", cleanupErr.message);
+    }
 
     console.log("[cAPi] : Resume uploaded successfully for user:", userId, "URL:", result.secure_url);
     res.json({ success: true, url: result.secure_url });
