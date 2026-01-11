@@ -14,6 +14,9 @@ import rateLimit from "express-rate-limit";
 import { body, validationResult } from "express-validator";
 import helmet from "helmet";
 import timeout from "express-timeout-handler";
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth } = pkg;
+import qrcode from 'qrcode-terminal';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -22,6 +25,70 @@ dotenv.config({ debug: true });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// ============================================
+// WHATSAPP CLIENT SETUP
+// ============================================
+let whatsappReady = false;
+const whatsappClient = new Client({
+  authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
+  puppeteer: {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  }
+});
+
+whatsappClient.on('qr', (qr) => {
+  console.log('[WhatsApp] Scan this QR code with your phone:');
+  qrcode.generate(qr, { small: true });
+});
+
+whatsappClient.on('ready', () => {
+  whatsappReady = true;
+  console.log('[WhatsApp] ✅ Client is ready!');
+});
+
+whatsappClient.on('authenticated', () => {
+  console.log('[WhatsApp] ✅ Authenticated successfully!');
+});
+
+whatsappClient.on('auth_failure', (msg) => {
+  console.error('[WhatsApp] ❌ Authentication failed:', msg);
+});
+
+whatsappClient.on('disconnected', (reason) => {
+  whatsappReady = false;
+  console.log('[WhatsApp] ⚠️ Client disconnected:', reason);
+});
+
+// Initialize WhatsApp client
+whatsappClient.initialize().catch(err => {
+  console.error('[WhatsApp] Failed to initialize:', err.message);
+});
+
+// WhatsApp message helper
+const sendWhatsAppMessage = async (phoneNumber, message) => {
+  if (!whatsappReady) {
+    console.log('[WhatsApp] Client not ready, skipping message');
+    return false;
+  }
+  if (!phoneNumber) {
+    console.log('[WhatsApp] No phone number provided, skipping');
+    return false;
+  }
+  try {
+    // Clean and format phone number: remove non-digits, remove leading 0, ensure 91 prefix
+    const cleaned = phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
+    const chatId = cleaned.startsWith('91') ? `${cleaned}@c.us` : `91${cleaned}@c.us`;
+    await whatsappClient.sendMessage(chatId, message);
+    console.log(`[WhatsApp] ✅ Message sent to ${phoneNumber}`);
+    return true;
+  } catch (err) {
+    console.error('[WhatsApp] ❌ Failed to send message:', err.message);
+    return false;
+  }
+};
+// ============================================
 
 // Configure multer to use /tmp directory for Vercel
 const uploadDir = "/tmp/uploads";
@@ -1315,6 +1382,7 @@ app.post(
     body('meetupDate').notEmpty().withMessage('Meetup date is required'),
     body('meetupVenue').notEmpty().withMessage('Meetup venue is required'),
     body('token').notEmpty().withMessage('Token is required'),
+    body('phone').optional().isString(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -1322,7 +1390,7 @@ app.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { email, userName, meetupTitle, meetupDate, meetupVenue, token } = req.body;
+    const { email, userName, meetupTitle, meetupDate, meetupVenue, token, phone } = req.body;
 
     try {
       const htmlContent = generateApprovalEmailHTML({
@@ -1341,6 +1409,13 @@ app.post(
       });
 
       console.log(`[cAPi] : Approval email sent to ${email} for meetup: ${meetupTitle}`);
+
+      // Send WhatsApp message if phone number is provided
+      if (phone) {
+        const whatsappMessage = `🎉 *Registration Approved!*\n\nHi ${userName},\n\nYour registration for *${meetupTitle}* has been approved!\n\n📅 *Date:* ${meetupDate}\n📍 *Venue:* ${meetupVenue}\n🎟️ *Token:* ${token}\n\nSee you at the event! 🚀\n\n- Team CodeSapiens`;
+        await sendWhatsAppMessage(phone, whatsappMessage);
+      }
+
       res.json({ success: true, message: `Approval email sent to ${email}` });
     } catch (error) {
       console.error("[cAPi] : Approval email error:", error.message);
@@ -1448,6 +1523,7 @@ app.post(
     body('meetupTitle').notEmpty().withMessage('Meetup title is required'),
     body('meetupDate').notEmpty().withMessage('Meetup date is required'),
     body('meetupVenue').notEmpty().withMessage('Meetup venue is required'),
+    body('phone').optional().isString(),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -1455,7 +1531,7 @@ app.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { email, userName, meetupTitle, meetupDate, meetupVenue } = req.body;
+    const { email, userName, meetupTitle, meetupDate, meetupVenue, phone } = req.body;
 
     try {
       const htmlContent = generateRejectionEmailHTML({
@@ -1473,6 +1549,13 @@ app.post(
       });
 
       console.log(`[cAPi] : Rejection email sent to ${email} for meetup: ${meetupTitle}`);
+
+      // Send WhatsApp message if phone number is provided
+      if (phone) {
+        const whatsappMessage = `Hi ${userName},\n\nWe regret to inform you that your registration for *${meetupTitle}* could not be approved at this time.\n\n📅 *Date:* ${meetupDate}\n📍 *Venue:* ${meetupVenue}\n\nWe hope to see you at future events!\n\n- Team CodeSapiens`;
+        await sendWhatsAppMessage(phone, whatsappMessage);
+      }
+
       res.json({ success: true, message: `Rejection email sent to ${email}` });
     } catch (error) {
       console.error("[cAPi] : Rejection email error:", error.message);
