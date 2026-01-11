@@ -40,6 +40,7 @@ const whatsappClient = new Client({
 
 whatsappClient.on('qr', (qr) => {
   console.log('[WhatsApp] Scan this QR code with your phone:');
+  console.log(qr)
   qrcode.generate(qr, { small: true });
 });
 
