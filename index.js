@@ -30,46 +30,89 @@ const PORT = process.env.PORT || 3001;
 // WHATSAPP CLIENT SETUP
 // ============================================
 let whatsappReady = false;
-const whatsappClient = new Client({
-  authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
-  puppeteer: {
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+let whatsappClient = null;
+
+// Function to find Chrome executable
+const findChromePath = () => {
+  const possiblePaths = [
+    '/opt/render/.cache/puppeteer/chrome/linux-143.0.7499.169/chrome-linux64/chrome',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ];
+
+  for (const chromePath of possiblePaths) {
+    if (fs.existsSync(chromePath)) {
+      console.log(`[WhatsApp] Found Chrome at: ${chromePath}`);
+      return chromePath;
+    }
   }
-});
+  return null;
+};
 
-whatsappClient.on('qr', (qr) => {
-  console.log('[WhatsApp] Scan this QR code with your phone:');
-  console.log(qr)
-  qrcode.generate(qr, { small: true });
-});
+const initWhatsApp = async () => {
+  const chromePath = findChromePath();
 
-whatsappClient.on('ready', () => {
-  whatsappReady = true;
-  console.log('[WhatsApp] ✅ Client is ready!');
-});
+  if (!chromePath) {
+    console.log('[WhatsApp] ⚠️ Chrome not found. WhatsApp will be disabled.');
+    return;
+  }
 
-whatsappClient.on('authenticated', () => {
-  console.log('[WhatsApp] ✅ Authenticated successfully!');
-});
+  try {
+    whatsappClient = new Client({
+      authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
+      puppeteer: {
+        headless: true,
+        executablePath: chromePath,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
+        ]
+      }
+    });
 
-whatsappClient.on('auth_failure', (msg) => {
-  console.error('[WhatsApp] ❌ Authentication failed:', msg);
-});
+    whatsappClient.on('qr', (qr) => {
+      console.log('[WhatsApp] Scan this QR code with your phone:');
+      qrcode.generate(qr, { small: true });
+    });
 
-whatsappClient.on('disconnected', (reason) => {
-  whatsappReady = false;
-  console.log('[WhatsApp] ⚠️ Client disconnected:', reason);
-});
+    whatsappClient.on('ready', () => {
+      whatsappReady = true;
+      console.log('[WhatsApp] ✅ Client is ready!');
+    });
+
+    whatsappClient.on('authenticated', () => {
+      console.log('[WhatsApp] ✅ Authenticated successfully!');
+    });
+
+    whatsappClient.on('auth_failure', (msg) => {
+      console.error('[WhatsApp] ❌ Authentication failed:', msg);
+    });
+
+    whatsappClient.on('disconnected', (reason) => {
+      whatsappReady = false;
+      console.log('[WhatsApp] ⚠️ Client disconnected:', reason);
+    });
+
+    await whatsappClient.initialize();
+    console.log('[WhatsApp] ✅ Initialization complete');
+  } catch (err) {
+    console.error('[WhatsApp] ❌ Failed to initialize:', err.message);
+  }
+};
 
 // Initialize WhatsApp client
-whatsappClient.initialize().catch(err => {
-  console.error('[WhatsApp] Failed to initialize:', err.message);
-});
+initWhatsApp();
 
 // WhatsApp message helper
 const sendWhatsAppMessage = async (phoneNumber, message) => {
-  if (!whatsappReady) {
+  if (!whatsappReady || !whatsappClient) {
     console.log('[WhatsApp] Client not ready, skipping message');
     return false;
   }
