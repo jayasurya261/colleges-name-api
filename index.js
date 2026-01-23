@@ -948,7 +948,7 @@ app.post("/api/send-blog-email", verifyAuth, async (req, res) => {
 
     // Send email with BCC
     await transporter.sendMail({
-      from: '"CodeSapiens Blog" <suryasunrise261@gmail.com>',
+      from: `"CodeSapiens Blog" <${process.env.EMAIL_USER}>`,
       to: "suryasunrise261@gmail.com", // Send to self/admin as primary recipient
       bcc: emails, // All recipients in BCC
       subject: `📚 New Blog: ${blog.title}`,
@@ -999,7 +999,7 @@ app.post("/api/send-blog-email-all", verifyAuth, async (req, res) => {
 
     // Send email with BCC
     await transporter.sendMail({
-      from: '"CodeSapiens Blog" <suryasunrise261@gmail.com>',
+      from: `"CodeSapiens Blog" <${process.env.EMAIL_USER}>`,
       to: "suryasunrise261@gmail.com", // Send to self/admin as primary recipient
       bcc: emails, // All recipients in BCC
       subject: `📚 New Blog: ${blog.title}`,
@@ -1030,7 +1030,7 @@ app.post("/api/test-email", verifyAuth, async (req, res) => {
     }
 
     await transporter.sendMail({
-      from: '"CodeSapiens" <suryasunrise261@gmail.com>',
+      from: `"CodeSapiens" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Test Email from CodeSapiens",
       html: `
@@ -1306,10 +1306,10 @@ const generateApprovalEmailHTML = (data) => {
 };
 
 app.post(
-  "/send-approval-email",
+  "/api/send-approval-email",
   verifyAuth,
   [
-    body('email').isEmail().withMessage('Valid email is required'),
+    body('email').notEmpty().withMessage('Email is required'),
     body('userName').notEmpty().withMessage('User name is required'),
     body('meetupTitle').notEmpty().withMessage('Meetup title is required'),
     body('meetupDate').notEmpty().withMessage('Meetup date is required'),
@@ -1317,8 +1317,10 @@ app.post(
     body('token').notEmpty().withMessage('Token is required'),
   ],
   async (req, res) => {
+    console.log("[cAPi] : Approval email request received:", req.body);
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.warn("[cAPi] : Approval validation errors:", errors.array());
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
@@ -1334,7 +1336,7 @@ app.post(
       });
 
       await transporter.sendMail({
-        from: '"CodeSapiens Meetups" <suryasunrise261@gmail.com>',
+        from: `"CodeSapiens Meetups" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: `✅ Registration Approved: ${meetupTitle}`,
         html: htmlContent,
@@ -1440,18 +1442,20 @@ const generateRejectionEmailHTML = (data) => {
 };
 
 app.post(
-  "/send-rejection-email",
+  "/api/send-rejection-email",
   verifyAuth,
   [
-    body('email').isEmail().withMessage('Valid email is required'),
+    body('email').notEmpty().withMessage('Email is required'),
     body('userName').notEmpty().withMessage('User name is required'),
     body('meetupTitle').notEmpty().withMessage('Meetup title is required'),
     body('meetupDate').notEmpty().withMessage('Meetup date is required'),
     body('meetupVenue').notEmpty().withMessage('Meetup venue is required'),
   ],
   async (req, res) => {
+    console.log("[cAPi] : Rejection email request received:", req.body);
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.warn("[cAPi] : Rejection validation errors:", errors.array());
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
@@ -1466,7 +1470,7 @@ app.post(
       });
 
       await transporter.sendMail({
-        from: '"CodeSapiens Meetups" <suryasunrise261@gmail.com>',
+        from: `"CodeSapiens Meetups" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: `Registration Update: ${meetupTitle}`,
         html: htmlContent,
