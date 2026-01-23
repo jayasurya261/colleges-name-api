@@ -183,14 +183,23 @@ const supabase = createClient(
 // Email transporter configuration
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  pool: true, // Use pooled connections
-  maxConnections: 5,
-  maxMessages: 100,
+  // pool: true, // Disabled to prevent hanging connections in serverless/unstable envs
+  // maxConnections: 5,
+  // maxMessages: 100,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
 });
+
+// Helper to chunk array for batching
+const chunkArray = (array, size) => {
+  const result = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+};
 
 
 
@@ -997,14 +1006,29 @@ app.post("/api/send-blog-email-all", verifyAuth, async (req, res) => {
 
     const htmlContent = generateBlogEmailHTML(blog);
 
-    // Send email with BCC
-    await transporter.sendMail({
-      from: `"CodeSapiens Blog" <${process.env.EMAIL_USER}>`,
-      to: "suryasunrise261@gmail.com", // Send to self/admin as primary recipient
-      bcc: emails, // All recipients in BCC
-      subject: `📚 New Blog: ${blog.title}`,
-      html: htmlContent,
-    });
+    // Chunk emails into batches of 50 to avoid Gmail throttling
+    const emailBatches = chunkArray(emails, 50);
+    console.log(`[cAPi] : Splitting ${emails.length} emails into ${emailBatches.length} batches`);
+
+    // Process batches sequentially
+    for (let i = 0; i < emailBatches.length; i++) {
+      const batch = emailBatches[i];
+      console.log(`[cAPi] : Sending batch ${i + 1}/${emailBatches.length} (${batch.length} recipients)`);
+
+      // Send email with BCC
+      await transporter.sendMail({
+        from: `"CodeSapiens Blog" <${process.env.EMAIL_USER}>`,
+        to: "suryasunrise261@gmail.com", // Send to self/admin as primary recipient
+        bcc: batch, // Current batch in BCC
+        subject: `📚 New Blog: ${blog.title}`,
+        html: htmlContent,
+      });
+
+      // Optional: Small delay between batches to be nice to the SMTP server
+      if (i < emailBatches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
 
     console.log(`[cAPi] : ✅ Email sent to ${emails.length} users via BCC`);
 
@@ -1335,12 +1359,14 @@ app.post(
         token,
       });
 
+      console.time('EmailSend-Approval');
       await transporter.sendMail({
         from: `"CodeSapiens Meetups" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: `✅ Registration Approved: ${meetupTitle}`,
         html: htmlContent,
       });
+      console.timeEnd('EmailSend-Approval');
 
       console.log(`[cAPi] : Approval email sent to ${email} for meetup: ${meetupTitle}`);
       res.json({ success: true, message: `Approval email sent to ${email}` });
@@ -1469,12 +1495,14 @@ app.post(
         meetupVenue,
       });
 
+      console.time('EmailSend-Rejection');
       await transporter.sendMail({
         from: `"CodeSapiens Meetups" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: `Registration Update: ${meetupTitle}`,
         html: htmlContent,
       });
+      console.timeEnd('EmailSend-Rejection');
 
       console.log(`[cAPi] : Rejection email sent to ${email} for meetup: ${meetupTitle}`);
       res.json({ success: true, message: `Rejection email sent to ${email}` });
